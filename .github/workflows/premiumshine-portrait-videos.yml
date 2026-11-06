@@ -1,0 +1,71 @@
+name: PremiumShine portrait video gallery
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/premiumshine-portrait-videos.yml"
+permissions:
+  contents: write
+jobs:
+  update-gallery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Keep six videos and display them vertically
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("index.html")
+          html = p.read_text(encoding="utf-8")
+          for n in (7, 8, 9):
+              pattern = rf'<article class="video-card">(?:(?!<article class="video-card">).)*?premiumshine-video-{n:02d}\.mp4(?:(?!<article class="video-card">).)*?</article>'
+              html, count = re.subn(pattern, "", html, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit(f"Could not safely remove video card {n}: matched {count}")
+          css = """
+          <style id="premiumshine-portrait-video-fix">
+          #videos .video-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+            align-items: start;
+          }
+          #videos .video-card {
+            width: 100%;
+            max-width: 360px;
+            margin-inline: auto;
+          }
+          #videos .video-card video {
+            display: block;
+            width: 100%;
+            height: auto;
+            aspect-ratio: 9 / 16 !important;
+            object-fit: contain !important;
+            object-position: center;
+            background: #120b0e;
+          }
+          @media (max-width: 800px) {
+            #videos .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          }
+          @media (max-width: 560px) {
+            #videos .video-grid { grid-template-columns: 1fr !important; }
+            #videos .video-card { max-width: 340px; }
+          }
+          </style>
+          """
+          if 'id="premiumshine-portrait-video-fix"' not in html:
+              html = html.replace("</head>", css + "\\n</head>", 1)
+          if html.count('class="video-card"') != 6:
+              raise SystemExit("Gallery does not contain exactly six cards after update")
+          p.write_text(html, encoding="utf-8")
+          PY
+      - name: Commit updated gallery
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Show six PremiumShine videos in portrait layout"
+          git push
