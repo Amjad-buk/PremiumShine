@@ -1,0 +1,38 @@
+name: Match PremiumShine posters to their videos
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/premiumshine-sync-video-posters.yml"
+permissions:
+  contents: write
+jobs:
+  sync-posters:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Generate each poster from its own video
+        run: |
+          set -euo pipefail
+          for n in 01 02 03 04 05 06; do
+            video="assets/videos/premiumshine-video-${n}.mp4"
+            poster="assets/posters/premiumshine-video-${n}.jpg"
+            test -s "$video"
+            ffmpeg -hide_banner -loglevel error -ss 1 -i "$video" -frames:v 1 -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=0x120b0e" -q:v 2 -y "$poster"
+            test -s "$poster"
+          done
+      - name: Commit matching poster frames
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/posters/premiumshine-video-0[1-6].jpg
+          git diff --cached --quiet && exit 0
+          git commit -m "Match each PremiumShine poster to its video"
+          git push
