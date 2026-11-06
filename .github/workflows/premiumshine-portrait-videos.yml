@@ -5,6 +5,7 @@ on:
       - main
     paths:
       - ".github/workflows/premiumshine-portrait-videos.yml"
+      - "index.html"
 permissions:
   contents: write
 jobs:
