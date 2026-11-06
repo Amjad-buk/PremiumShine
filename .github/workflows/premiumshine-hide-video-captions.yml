@@ -1,0 +1,60 @@
+name: PremiumShine hide video captions
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/premiumshine-hide-video-captions.yml"
+permissions:
+  contents: write
+jobs:
+  hide-captions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hide titles and numbers beneath video frames
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path("index.html")
+          html = p.read_text(encoding="utf-8")
+          marker = 'id="premiumshine-portrait-video-fix"'
+          if marker not in html:
+              raise SystemExit("Portrait gallery style block not found; refusing to alter layout.")
+          css = """
+          /* Video-only tiles: remove labels, titles, and numbering beneath each video. */
+          #videos .video-card h1,
+          #videos .video-card h2,
+          #videos .video-card h3,
+          #videos .video-card h4,
+          #videos .video-card p,
+          #videos .video-card small,
+          #videos .video-card figcaption,
+          #videos .video-card .video-title,
+          #videos .video-card .video-number,
+          #videos .video-card .video-info,
+          #videos .video-card .video-meta,
+          #videos .video-card .video-caption,
+          #videos .video-card .video-label {
+            display: none !important;
+          }
+          """
+          pattern = r'(<style id="premiumshine-portrait-video-fix">)(.*?)(</style>)'
+          def patch(m):
+              body = m.group(2)
+              if "Video-only tiles:" not in body:
+                  body += "\\n" + css + "\\n"
+              return m.group(1) + body + m.group(3)
+          updated, count = re.subn(pattern, patch, html, count=1, flags=re.S)
+          if count != 1 or updated == html:
+              raise SystemExit("Could not safely update gallery style block.")
+          p.write_text(updated, encoding="utf-8")
+          PY
+      - name: Commit the gallery-only change
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git diff --cached --quiet && exit 0
+          git commit -m "Remove video names and numbers from gallery"
+          git push
